@@ -170,6 +170,7 @@ void mode3(){
       bright[i]=0;
     }
   }
+  delay(5);
 }
 
 /* 
@@ -179,7 +180,7 @@ void mode3(){
 void mode4(){
   if(modeSetup){
     for(int i=0; i<150; i++){
-      bright[i] = random(0,BRIGHTNESS);
+      bright[i] = random(50,BRIGHTNESS);
   
       if(random(0,2)==0)
         directions[i] = 1;
@@ -189,7 +190,7 @@ void mode4(){
     modeSetup = false;
   }
   for(int i=0; i<150; i++){
-    bright[i] += random(1,4) * directions[i];
+    bright[i] += random(1,8) * directions[i];
     
     if(bright[i] > BRIGHTNESS)
       bright[i] = BRIGHTNESS;
@@ -198,9 +199,9 @@ void mode4(){
     if(bright[i]==50 || bright[i]==BRIGHTNESS)
       directions[i] *= -1;
       
-    led[i] = CHSV(hue,120,bright[i]);
+    led[i] = CHSV(hue,100,bright[i]);
   }
-  delay(15);
+  delay(10);
 }
 
 /* 
@@ -261,6 +262,7 @@ void mode5(){
     dir = 1;
     flip = true;
   }
+  delay(5);
 }
 
 /*
