@@ -6,7 +6,7 @@
 #define NUM_LEDS 150
 
 // LED pointers, global brightness and hue
-CRGB leds[NUM_LEDS];
+CRGB led[NUM_LEDS];
 int brightness = 0;
 int hue = 0;
 
@@ -31,8 +31,8 @@ int directions[NUM_LEDS];
 // alternating pattern variables
 bool flip = false;
 int dir = 1;
-int color1 = 135;
-int color2 = 200;
+int color = 135;
+int offset = 65;
 
 
 void loop()
@@ -48,8 +48,8 @@ void loop()
 
   // choose routine based on mode
   modeStateMachine();
-  
-  
+
+  // apply changes and delay 5ms
   FastLED.show();
   delay(5);
 }
@@ -112,6 +112,9 @@ void modeStateMachine(){
     case 4:
       mode4();
       break;
+    case 5:
+      mode5();
+      break;
   }
 }
 
@@ -121,7 +124,7 @@ void modeStateMachine(){
  */
 void mode0(){
   for(int i=0; i<150; i++)
-    leds[i] = CHSV(hue,255,BRIGHTNESS);
+    led[i] = CHSV(hue,255,BRIGHTNESS);
 }
 
 /*
@@ -129,13 +132,16 @@ void mode0(){
  *  Moving solid color
  */
 void mode1(){
-  if(modeSetup)
+  if(modeSetup){
     bright[0] = 0;
+    modeSetup = false;
+  }
   for(int i=0; i<150; i++)
-    leds[i] = CHSV(hue+bright[0],255,BRIGHTNESS);
+    led[i] = CHSV(hue+bright[0],255,BRIGHTNESS);
   bright[0]++;
   if(bright[0]==255)
     bright[0] = 0;
+  delay(5);
 }
 
 /* 
@@ -144,7 +150,7 @@ void mode1(){
  */
 void mode2(){
   for(int i=0; i<150; i++)
-    leds[i] = CHSV(i+hue,255,BRIGHTNESS);
+    led[i] = CHSV(i+hue,255,BRIGHTNESS);
 }
 
 /* 
@@ -158,7 +164,7 @@ void mode3(){
     modeSetup = false;
   }
   for(int i=0; i<150; i++){
-    leds[i] = CHSV(bright[i]+hue, 255, BRIGHTNESS);
+    led[i] = CHSV(bright[i]+hue, 255, BRIGHTNESS);
     bright[i]++;
     if(bright[i]==255){
       bright[i]=0;
@@ -192,7 +198,7 @@ void mode4(){
     if(bright[i]==50 || bright[i]==BRIGHTNESS)
       directions[i] *= -1;
       
-    leds[i] = CHSV(hue,120,bright[i]);
+    led[i] = CHSV(hue,120,bright[i]);
   }
   delay(15);
 }
@@ -225,11 +231,11 @@ void mode5(){
     for(int i=0; i<150; i++){
       if(directions[i] == 0){
         directions[i] = 1;
-        leds[i] = CHSV(color1, SATURATION, bright[0]);
+        led[i] = CHSV(color+hue, SATURATION, bright[0]);
       }
       else{
         directions[i] = 0;
-        leds[i] = CHSV(color2, SATURATION, bright[0]);
+        led[i] = CHSV(color+offset+hue, SATURATION, bright[0]);
       }
     }
     flip = false;
@@ -237,18 +243,20 @@ void mode5(){
   else{
     for(int i=0; i<150; i++)
       if(directions[i] == 0)
-        leds[i] = CHSV(color1+hue, SATURATION, bright[0]);
+        led[i] = CHSV(color+hue, SATURATION, bright[0]);
       else
-        leds[i] = CHSV(color2+hue, SATURATION, bright[0]);
+        led[i] = CHSV(color+offset+hue, SATURATION, bright[0]);
   }
   
   if(dir == 1)
-    bright[0]+=4;
+    bright[0]+=2;
   else
-    bright[0]-=4;
+    bright[0]-=2;
   
-  if(bright[0]>=252)
+  if(bright[0]>=252){
     dir = 0;
+    flip = true;
+  }
   else if(bright[0]<=180){
     dir = 1;
     flip = true;
@@ -284,26 +292,22 @@ void setBrightnessAndHue(){
 }
 
 void setup() {
-  delay(1000); // power-up safety delay
-  FastLED.addLeds<NEOPIXEL, 12>(leds, NUM_LEDS);
+  delay(1000);
+  FastLED.addLeds<NEOPIXEL, 12>(led, NUM_LEDS);
+  Serial.begin(9600); 
   pinMode(D2, INPUT);
   pinMode(D3, INPUT);
   pinMode(D4 , INPUT);
-  Serial.begin(9600); 
   
   // get button and potentiometer values
   readMidiValues();
-  
-  // calculate and set global brightness
-  brightness = int((1.0 * 255 / 1023) * sensorValueA0);
-  FastLED.setBrightness(brightness);
 
-  // calculate hue
-  hue = int((1.0 * 255 / 1023) * sensorValueA1);
+  // set global brightness and hue
+  setBrightnessAndHue();
 
   // set initial state based on calculated brightness and hue
   for(int i=0; i<150; i++){
-    leds[i] = CHSV(hue,SATURATION,brightness);
+    led[i] = CHSV(hue,SATURATION,brightness);
   }
 
   FastLED.show();
