@@ -28,7 +28,7 @@
 
 #define NUM_LEDS 150
 #define DATA_PIN 12
-#define BRIGHTNESS 255
+#define BRIGHTNESS 200
 
 CRGB leds[NUM_LEDS];
 CHSV hues[NUM_LEDS];

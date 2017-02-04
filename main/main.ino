@@ -14,6 +14,8 @@ int hue = 0;
 const int D2 = 2;
 const int D3 = 3;
 const int D4 = 4;
+const int D6 = 6;
+const int D7 = 7;
 int btn2, btn3, btn4;
 int sensorValueA0 = 0;
 int sensorValueA1 = 0;
@@ -59,13 +61,13 @@ void loop()
  * Increments mode or resets to 0
  */
 void detectModeSwitch(){
-  if(!d3High && !d3Low && btn3 == 1)
-    d3High = true;
-  else if(d3High && !d3Low && btn3 == 0){
+  if(!d3Low && !d3High && btn3 == 0)
     d3Low = true;
-    d3High = false;
+  else if(d3Low && !d3High && btn3 == 1){
+    d3Low = false;
+    d3High = true;
   }
-  else if(d3Low){
+  else if(d3High){
     switch(mode){
       case 0:
         mode = 1;
@@ -86,7 +88,7 @@ void detectModeSwitch(){
         mode = 0;
         break;
     }
-    d3Low = false;
+    d3High = false;
     modeSetup = true;
   }
 }
@@ -190,7 +192,7 @@ void mode4(){
     modeSetup = false;
   }
   for(int i=0; i<150; i++){
-    bright[i] += random(1,8) * directions[i];
+    bright[i] += random(1,4) * directions[i];
     
     if(bright[i] > BRIGHTNESS)
       bright[i] = BRIGHTNESS;
@@ -201,7 +203,7 @@ void mode4(){
       
     led[i] = CHSV(hue,100,bright[i]);
   }
-  delay(10);
+  delay(15);
 }
 
 /* 
@@ -277,6 +279,22 @@ void readMidiValues(){
   btn2 = digitalRead(D2);
   btn3 = digitalRead(D3);
   btn4 = digitalRead(D4);
+
+  if(btn2 == 0){
+    digitalWrite(D6, LOW);
+  }
+  else{
+    digitalWrite(D6, HIGH);
+  }
+
+  if(btn3 == 0){
+    digitalWrite(D7, LOW);
+  }
+  else{
+    digitalWrite(D7, HIGH);
+  }
+
+  
 }
 
 /*
@@ -297,9 +315,11 @@ void setup() {
   delay(1000);
   FastLED.addLeds<NEOPIXEL, 12>(led, NUM_LEDS);
   Serial.begin(9600); 
-  pinMode(D2, INPUT);
-  pinMode(D3, INPUT);
-  pinMode(D4 , INPUT);
+  pinMode(D2, INPUT_PULLUP);
+  pinMode(D3, INPUT_PULLUP);
+  pinMode(D4, INPUT_PULLUP);
+  pinMode(D6, OUTPUT);
+  pinMode(D7, OUTPUT); 
   
   // get button and potentiometer values
   readMidiValues();
