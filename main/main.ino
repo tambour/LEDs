@@ -1,9 +1,14 @@
+#include <SoftwareSerial.h>
+#include <MIDI.h>
 #include <FastLED.h>
 #include <math.h>
 
 #define BRIGHTNESS 180
 #define SATURATION 140
 #define NUM_LEDS 150
+
+SoftwareSerial SoftSerial(8,9);
+MIDI_CREATE_INSTANCE(SoftwareSerial, SoftSerial, MIDI);
 
 // LED pointers, global brightness and hue
 CRGB led[NUM_LEDS];
@@ -36,11 +41,16 @@ int dir = 1;
 int color = 135;
 int offset = 65;
 
-
+/*
+ * Arduino Loop
+ */
 void loop()
 {
   // get button and potentiometer values
-  readMidiValues();
+  readBoardValues();
+
+  // get MIDI signals
+  readMidi();
 
   // set global brightness and hue
   setBrightnessAndHue();
@@ -53,12 +63,35 @@ void loop()
 
   // apply changes and delay 5ms
   FastLED.show();
-  delay(5);
+
+  // TODO:non-ideal delay, used for MIDI debugging
+  delay(100);
 }
 
 /*
- * Looks for btn D3 to go high then low
- * Increments mode or resets to 0
+ * Act on value from MIDI interface
+ */
+ void readMidi(){
+   if(MIDI.read())
+   {
+    Serial.println(MIDI.getType());
+
+    // 144 == start
+    if(MIDI.getType() == 144)
+      digitalWrite(D6, LOW);
+    // 128 == stop
+    else if(MIDI.getType() == 128)
+      digitalWrite(D7, LOW);
+   }
+   else{ // disable LED when no MIDI signal
+    digitalWrite(D6, HIGH);
+    digitalWrite(D7, HIGH);
+   }
+ }
+
+/*
+ * Look for btn D3 to go low then high
+ * Increment mode or reset to 0
  */
 void detectModeSwitch(){
   if(!d3Low && !d3High && btn3 == 0)
@@ -270,7 +303,7 @@ void mode5(){
 /*
  * Gets dial values and button states
  */
-void readMidiValues(){
+void readBoardValues(){
   // get potentiometer values
   sensorValueA0 = analogRead(A0);
   sensorValueA1 = analogRead(A1);
@@ -279,22 +312,6 @@ void readMidiValues(){
   btn2 = digitalRead(D2);
   btn3 = digitalRead(D3);
   btn4 = digitalRead(D4);
-
-  if(btn2 == 0){
-    digitalWrite(D6, LOW);
-  }
-  else{
-    digitalWrite(D6, HIGH);
-  }
-
-  if(btn3 == 0){
-    digitalWrite(D7, LOW);
-  }
-  else{
-    digitalWrite(D7, HIGH);
-  }
-
-  
 }
 
 /*
@@ -314,15 +331,20 @@ void setBrightnessAndHue(){
 void setup() {
   delay(1000);
   FastLED.addLeds<NEOPIXEL, 12>(led, NUM_LEDS);
+  MIDI.begin(MIDI_CHANNEL_OMNI);
   Serial.begin(9600); 
   pinMode(D2, INPUT_PULLUP);
   pinMode(D3, INPUT_PULLUP);
   pinMode(D4, INPUT_PULLUP);
   pinMode(D6, OUTPUT);
   pinMode(D7, OUTPUT); 
+
+  // LEDs initially off
+  digitalWrite(D6, HIGH);
+  digitalWrite(D7, HIGH);
   
   // get button and potentiometer values
-  readMidiValues();
+  readBoardValues();
 
   // set global brightness and hue
   setBrightnessAndHue();
