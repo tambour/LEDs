@@ -28,7 +28,7 @@
 
 
 #define NUM_LEDS 150
-#define DATA_PIN 12
+#define DATA_PIN 8
 #define BRIGHTNESS 180
 
 CRGB leds[NUM_LEDS];

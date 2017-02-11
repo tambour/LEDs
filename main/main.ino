@@ -3,12 +3,14 @@
 #include <FastLED.h>
 #include <math.h>
 
-#define BRIGHTNESS 180
+#define BRIGHTNESS 100
 #define SATURATION 140
 #define NUM_LEDS 150
 
-SoftwareSerial SoftSerial(8,9);
-MIDI_CREATE_INSTANCE(SoftwareSerial, SoftSerial, MIDI);
+//SoftwareSerial SoftSerial(8,9);
+//MIDI_CREATE_INSTANCE(SoftwareSerial, SoftSerial, MIDI);
+
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 
 // LED pointers, global brightness and hue
 CRGB led[NUM_LEDS];
@@ -46,48 +48,32 @@ int offset = 65;
  */
 void loop()
 {
-  // get button and potentiometer values
-  readBoardValues();
-
   // get MIDI signals
-  readMidi();
+  MIDI.read();
+
+  // get button and potentiometer values
+  //readBoardValues();
 
   // set global brightness and hue
-  setBrightnessAndHue();
+  //setBrightnessAndHue();
       
   // switch modes on button press
-  detectModeSwitch();
+  //detectModeSwitch();
 
   // choose routine based on mode
   modeStateMachine();
 
   // apply changes and delay 5ms
   FastLED.show();
-
-  // TODO:non-ideal delay, used for MIDI debugging
-  delay(100);
+  delay(10);
 }
 
-/*
- * Act on value from MIDI interface
- */
- void readMidi(){
-   if(MIDI.read())
-   {
-    Serial.println(MIDI.getType());
+void HandleNoteOn(byte channel, byte pitch, byte velocity) {
+  dir = dir + 1;
+  hue = hue + 50;
+}
 
-    // 144 == start
-    if(MIDI.getType() == 144)
-      digitalWrite(D6, LOW);
-    // 128 == stop
-    else if(MIDI.getType() == 128)
-      digitalWrite(D7, LOW);
-   }
-   else{ // disable LED when no MIDI signal
-    digitalWrite(D6, HIGH);
-    digitalWrite(D7, HIGH);
-   }
- }
+ 
 
 /*
  * Look for btn D3 to go low then high
@@ -173,10 +159,10 @@ void mode1(){
   }
   for(int i=0; i<150; i++)
     led[i] = CHSV(hue+bright[0],255,BRIGHTNESS);
-  bright[0]++;
+  bright[0]+=4;
   if(bright[0]==255)
     bright[0] = 0;
-  delay(5);
+  //delay(5);
 }
 
 /* 
@@ -330,28 +316,32 @@ void setBrightnessAndHue(){
 
 void setup() {
   delay(1000);
-  FastLED.addLeds<NEOPIXEL, 12>(led, NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, 8>(led, NUM_LEDS);
+  FastLED.setBrightness(BRIGHTNESS);
   MIDI.begin(MIDI_CHANNEL_OMNI);
-  Serial.begin(9600); 
-  pinMode(D2, INPUT_PULLUP);
-  pinMode(D3, INPUT_PULLUP);
-  pinMode(D4, INPUT_PULLUP);
-  pinMode(D6, OUTPUT);
-  pinMode(D7, OUTPUT); 
+  MIDI.setHandleNoteOn(HandleNoteOn);
+  
+  //Serial.begin(9600); 
+//  pinMode(D2, INPUT_PULLUP);
+//  pinMode(D3, INPUT_PULLUP);
+//  pinMode(D4, INPUT_PULLUP);
+//  pinMode(D6, OUTPUT);
+//  pinMode(D7, OUTPUT); 
 
   // LEDs initially off
-  digitalWrite(D6, HIGH);
-  digitalWrite(D7, HIGH);
+//  digitalWrite(D6, HIGH);
+//  digitalWrite(D7, HIGH);
   
   // get button and potentiometer values
-  readBoardValues();
+//  readBoardValues();
 
   // set global brightness and hue
-  setBrightnessAndHue();
+//  setBrightnessAndHue();
 
   // set initial state based on calculated brightness and hue
   for(int i=0; i<150; i++){
-    led[i] = CHSV(hue,SATURATION,brightness);
+    //led[i] = CHSV(hue,SATURATION,brightness);
+    led[i] = CRGB::White;
   }
 
   FastLED.show();
