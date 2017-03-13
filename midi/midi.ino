@@ -16,7 +16,7 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 CRGB led[NUM_LEDS];
 int brightness = 180;
 int hue = 120;
-int waitTime = 0;
+int waitTime = 5;
 
 // mode vars
 int mode = 8;
@@ -32,6 +32,8 @@ int hueDirection = 1;
 int targetBrightness = 180;
 int brightnessStep = 3;
 int descending = 0;
+
+// setting sonar toggle makes timing unreliable!!
 int sonarToggle = 0;
 
 // int arrays 
@@ -200,25 +202,21 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       brightness = BRIGHTNESS;
       setGradientHue();
       descending = 1;
-      modeSetup = true;
       break;
     case 73: // medium burst
       brightness = BRIGHTNESS;
       setGradientHue();
       descending = 2;
-      modeSetup = true;
       break;
     case 74: // fast burst
       brightness = BRIGHTNESS;
       setGradientHue();
       descending = 7;
-      modeSetup = true;
       break;
     case 75: // slow swell
       brightness = 0;
       setGradientHue();
       descending = -1;
-      modeSetup = true;
       break;
     case 76: // stop burst/swell
       descending = 0;
@@ -358,8 +356,6 @@ void modeStateMachine(){
 void mode0(){
   for(int i=0; i<NUM_LEDS; i++)
     led[i] = CHSV(hue,SATURATION,brightness);
-
-  delay(5);
 }
 
 /*
@@ -376,7 +372,6 @@ void mode1(){
   bright[0]+=2;
   if(bright[0]==255)
     bright[0] = 0;
-  delay(5);
 }
 
 /* 
@@ -406,7 +401,6 @@ void mode3(){
       bright[i]=0;
     }
   }
-  delay(5);
 }
 
 /*
@@ -475,9 +469,9 @@ void mode5(){
     if(bright[i]==50 || bright[i]==brightness)
       directions[i] *= -1;
       
-    led[i] = CHSV(hue,100,bright[i]);
+    led[i] = CHSV(hue,150,bright[i]);
   }
-  delay(15);
+  delay(8);
 }
 
 /* 
@@ -539,7 +533,6 @@ void mode6(){
     dir = 1;
     flip = true;
   }
-  delay(5);
 }
 
 /*
@@ -594,7 +587,6 @@ void mode6(){
       counter = 0;
     }
   }
-  
  }
 
  /*
@@ -648,7 +640,7 @@ void mode8(){
         directions[0] = 1;
     }
   }
-  delay(10);
+  delay(5);
 }
 
 /*
@@ -673,13 +665,13 @@ void mode9(){
       led[i] = CHSV(0,0,brightness);
     }
     dir = 0;
-    delay(110);
+    delay(100);
   }
 }
 
 
 void setup() {
-  delay(1000);
+  delay(200);
   FastLED.addLeds<NEOPIXEL, 8>(led, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
   MIDI.begin(MIDI_CHANNEL_OMNI);
