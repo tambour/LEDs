@@ -1,9 +1,8 @@
 #include <SoftwareSerial.h>
-#include <MIDI.h>
 #include <FastLED.h>
+#include <MIDI.h>
 #include <math.h>
 
-// macros
 #define BRIGHTNESS 255
 #define IDLE_BRIGHTNESS 100
 #define SATURATION 255
@@ -18,15 +17,16 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 CRGB led[NUM_LEDS];
 int brightness = IDLE_BRIGHTNESS;
 int hue = 120;
-int waitTime = 10;
+int waitTime = 5;
 
-// set mode via keyboard input
+// qwerty input
 bool keyControl = true;
 int key = 0;
 
 // mode vars
 int mode = 4;
 bool modeSetup = true;
+bool action = false;
 
 // gradient vars
 int hueStep = 8;
@@ -40,17 +40,13 @@ int brightnessStep = 3;
 int descending = 0;
 bool sonar = false;
 
-// int arrays 
+// general purpose vars
 int bright[NUM_LEDS];
 int directions[NUM_LEDS];
 int colors[NUM_LEDS];
-
-// alternating pattern vars
-bool flip = false;
 int dir = 1;
-int color = 135;
-int offset = 65;
 int counter = 0;
+int value = 0;
 
 /*
  * Arduino Loop
@@ -58,9 +54,9 @@ int counter = 0;
 void loop()
 {
   // get MIDI
-  //MIDI.read();
+  MIDI.read();
 
-  // get keys
+  // get qwerty keys
   if(keyControl)
     getSerial();
 
@@ -100,12 +96,10 @@ void setBurstBrightness(){
 
 void setGradientHue(){
   hue += hueStep * hueDirection;
-  if(hue >= hueStop){
+  if(hue >= hueStop)
     hueDirection = -1;
-  }
-  else if(hue <= hueStart){
+  else if(hue <= hueStart)
     hueDirection = 1;
-  }
 }
 
 void setSonarBrightness(){
@@ -120,32 +114,30 @@ void setSonarBrightness(){
     distance = (duration/2) / 29.1;
     if(distance <= 50 && distance != 0){
       targetBrightness = int(5*distance + 5);
-      if(targetBrightness > 255){
+      if(targetBrightness > 255)
         targetBrightness = 255;
-      }
-      else if(targetBrightness < 0){
+      else if(targetBrightness < 0)
         targetBrightness = 0;
-      }
     }    
   }
   if(brightness != targetBrightness){
-      if(targetBrightness > brightness){
-        brightnessStep = int((targetBrightness - brightness)/32);
-        if(brightnessStep == 0)
-          brightnessStep = 1;
-        brightness += brightnessStep;
-        if(brightness > targetBrightness)
-          brightness = targetBrightness;
-      }
-      else{
-        brightnessStep = int((brightness - targetBrightness)/32);
-        if(brightnessStep == 0)
-          brightnessStep = 1;
-        brightness -= brightnessStep;
-        if(brightness < targetBrightness)
-          brightness = targetBrightness;
-      }
+    if(targetBrightness > brightness){
+      brightnessStep = int((targetBrightness - brightness)/32);
+      if(brightnessStep == 0)
+        brightnessStep = 1;
+      brightness += brightnessStep;
+      if(brightness > targetBrightness)
+        brightness = targetBrightness;
     }
+    else{
+      brightnessStep = int((brightness - targetBrightness)/32);
+      if(brightnessStep == 0)
+        brightnessStep = 1;
+      brightness -= brightnessStep;
+      if(brightness < targetBrightness)
+        brightness = targetBrightness;
+    }
+  }
 }
 
 
@@ -156,8 +148,6 @@ void setSonarBrightness(){
 void mode0(){
   for(int i=0; i<NUM_LEDS; i++)
     led[i] = CHSV(hue,SATURATION,brightness);
-
-  delay(5);
 }
 
 /*
@@ -166,15 +156,14 @@ void mode0(){
  */
 void mode1(){
   if(modeSetup){
-    bright[0] = 0;
+    value = 0;
     modeSetup = false;
   }
-  for(int i=0; i<150; i++)
-    led[i] = CHSV(hue+bright[0],SATURATION,brightness);
-  bright[0]+=2;
-  if(bright[0]==255)
-    bright[0] = 0;
-  delay(5);
+  for(int i=0; i<NUM_LEDS; i++)
+    led[i] = CHSV(hue+value,SATURATION,brightness);
+  value+=2;
+  if(value==255)
+    value = 0;
 }
 
 /* 
@@ -182,7 +171,7 @@ void mode1(){
  *  Unmoving ROYGBIV Gradient
  */
 void mode2(){
-  for(int i=0; i<150; i++)
+  for(int i=0; i<NUM_LEDS; i++)
     led[i] = CHSV(i+hue,SATURATION,brightness);
 }
 
@@ -192,19 +181,17 @@ void mode2(){
  */
 void mode3(){
   if(modeSetup){
-    for(int i=0; i<150; i++)
+    for(int i=0; i<NUM_LEDS; i++)
       bright[i] = i;
     modeSetup = false;
     descending = 0;
   }
-  for(int i=0; i<150; i++){
+  for(int i=0; i<NUM_LEDS; i++){
     led[i] = CHSV(bright[i]+hue, SATURATION, brightness);
     bright[i]++;
-    if(bright[i]==255){
+    if(bright[i]==255)
       bright[i]=0;
-    }
   }
-  delay(5);
 }
 
 /*
@@ -219,29 +206,25 @@ void mode4(){
     for(int i=0; i<NUM_LEDS; i++){
       bright[i] = hueStart + adder*dir;
       adder += dir;
-      if(adder == (hueStop-hueStart)){
+      if(adder == (hueStop-hueStart))
         dir = -1;
-      }
-      else if(adder == 0){
+      else if(adder == 0)
         dir = 1;
-      }
     }
     dir = 1;
     modeSetup = false;
   }
   for(int i=NUM_LEDS-1; i>=0; i--){
     if(i == 0){
-      if(bright[1] == hueStart){
+      if(bright[1] == hueStart)
         dir = 1;
-      }
-      else if(bright[1] == hueStop){
+      else if(bright[1] == hueStop)
         dir = -1;
-      }
       bright[0] = bright[1] + dir;
     }
-    else{
+    else
       bright[i] = bright[i-1];
-    }
+
     led[i] = CHSV(bright[i],SATURATION,brightness);
   }
 }
@@ -275,7 +258,7 @@ void mode5(){
       
     led[i] = CHSV(hue,100,bright[i]);
   }
-  delay(15);
+  delay(8);
 }
 
 /* 
@@ -285,59 +268,54 @@ void mode5(){
 void mode6(){
   if(modeSetup){
     descending = 0;
-    flip = 0;
-    bright[0] = 100;
+    value = 160;
     dir = 1;
     for(int i=0; i<150; i++){
-      if(flip==0){
+      if(dir==0){
         directions[i] = 0;
         directions[i+1] = 0;
-        flip=1;
+        dir=1;
       }
       else{
         directions[i] = 1;
         directions[i+1] = 1;
-        flip=0;
+        dir=0;
       }
       i++;
     }
+    dir=1;
     modeSetup = false;
   }
-  if(flip){
+  if(action){
     for(int i=0; i<150; i++){
       if(directions[i] == 0){
         directions[i] = 1;
-        led[i] = CHSV(color+hue, SATURATION, bright[0]);
+        led[i] = CHSV(hueStart, SATURATION, value);
       }
       else{
         directions[i] = 0;
-        led[i] = CHSV(color+offset+hue, SATURATION, bright[0]);
+        led[i] = CHSV(hueStop, SATURATION, value);
       }
     }
-    flip = false;
+    action = false;
   }
   else{
     for(int i=0; i<150; i++)
       if(directions[i] == 0)
-        led[i] = CHSV(color+hue, SATURATION, bright[0]);
+        led[i] = CHSV(hueStart, SATURATION, value);
       else
-        led[i] = CHSV(color+offset+hue, SATURATION, bright[0]);
+        led[i] = CHSV(hueStop, SATURATION, value);
   }
   
   if(dir == 1)
-    bright[0]+=2;
+    value+=2;
   else
-    bright[0]-=2;
+    value-=2;
   
-  if(bright[0]>=252){
+  if(value>=252)
     dir = 0;
-    flip = true;
-  }
-  else if(bright[0]<=180){
+  else if(value<=160)
     dir = 1;
-    flip = true;
-  }
-  delay(5);
 }
 
 /*
@@ -373,7 +351,8 @@ void mode6(){
       }
       led[i] = CHSV(colors[i], SATURATION, bright[i]);
     }
-    if(counter==8){
+    if(action){
+      action = false;
       for(int i=NUM_LEDS-1; i>=0; i--){
         if(i!=0){
           colors[i] = colors[i-1];
@@ -406,44 +385,66 @@ void mode8(){
     dir = 1;
     directions[0] = 1;
     for(int i=0; i<NUM_LEDS; i++){
-      // moving lights
+      // mark every 15th light
       directions[i] = 0;
       if(i%15 == 0)
         directions[i] = 1;
         
       bright[i] = hueStart + adder*dir;
       adder += dir;
-      if(adder == (hueStop-hueStart)){
+      if(adder == (hueStop-hueStart))
         dir = -1;
-      }
-      else if(adder == 0){
+      else if(adder == 0)
         dir = 1;
-      }
     }
     dir = 1;
+    value = 1;
     modeSetup = false;
   }
-  for(int i=NUM_LEDS-1; i>=0; i--){
-    if(i == 0){
-      if(bright[1] == hueStart){
-        dir = 1;
+  if(value){
+    for(int i=NUM_LEDS-1; i>=0; i--){
+      if(i == 0){
+        if(bright[1] == hueStart)
+          dir = 1;
+        else if(bright[1] == hueStop)
+          dir = -1;
+        bright[0] = bright[1] + dir;
       }
-      else if(bright[1] == hueStop){
-        dir = -1;
+      else
+        bright[i] = bright[i-1];
+
+      if(directions[i] == 0)
+        led[i] = CHSV(bright[i],SATURATION,brightness);
+      else{
+        led[i] = CRGB::White;
+        directions[i] = 0;
+        directions[i+1] = 1;
+        if(i==15)
+          directions[0] = 1;
       }
-      bright[0] = bright[1] + dir;
     }
-    else{
-      bright[i] = bright[i-1];
-    }
-    if(directions[i] == 0)
-      led[i] = CHSV(bright[i],SATURATION,brightness);
-    else{
-      led[i] = CRGB::White;
-      directions[i] = 0;
-      directions[i+1] = 1;
-      if(i==15)
-        directions[0] = 1;
+  }
+  else{
+    for(int i=0; i<NUM_LEDS-1; i++){
+      if(i == 0){
+        if(bright[1] == hueStart)
+          dir = 1;
+        else if(bright[1] == hueStop)
+          dir = -1;
+        bright[0] = bright[1] + dir;
+      }
+      else
+        bright[i] = bright[i-1];
+
+      if(directions[i] == 0)
+        led[i] = CHSV(bright[i],SATURATION,brightness);
+      else{
+        led[i] = CRGB::White;
+        directions[i] = 0;
+        directions[i+1] = 1;
+        if(i==NUM_LEDS-15)
+          directions[NUM_LEDS-1] = 1;
+      }
     }
   }
   delay(20);
@@ -460,18 +461,16 @@ void mode9(){
   }
 
   if(dir==0){
-    for(int i=0; i<NUM_LEDS; i++){
+    for(int i=0; i<NUM_LEDS; i++)
       led[i] = CHSV(0,0,0);
-    }
-    delay(20);
+    delay(15);
     dir = 1;
   }
   else{
-    for(int i=0; i<NUM_LEDS; i++){
+    for(int i=0; i<NUM_LEDS; i++)
       led[i] = CHSV(0,0,brightness);
-    }
     dir = 0;
-    delay(110);
+    delay(100);
   }
 }
 
@@ -483,6 +482,7 @@ void setup() {
   MIDI.begin(MIDI_CHANNEL_OMNI);
   MIDI.setHandleNoteOn(HandleNoteOn);
 
+  // qwerty to midi
   if(keyControl)
     Serial.begin(9600);
 
@@ -490,9 +490,8 @@ void setup() {
   pinMode(TRIG, OUTPUT);
   pinMode(ECHO, INPUT);
 
-  for(int i=0; i<150; i++){
+  for(int i=0; i<NUM_LEDS; i++)
     led[i] = CHSV(hue,SATURATION,brightness);
-  }
 
   FastLED.show();
 }
@@ -539,7 +538,7 @@ void modeStateMachine(){
 
 /*
  * Get serial readings for simulating
- * MIDI via computer keyboard
+ * MIDI via qwerty keyboard
  */
 void getSerial(){
   if(Serial.available()){
@@ -673,11 +672,13 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       break;
     case 67:
       waitTime -= 5;
-      if(waitTime < 0){
+      if(waitTime < 0)
         waitTime = 0;
-      }
     case 69:
       waitTime += 5;
+      break;
+    case 71: // action key
+      action = true;
       break;
     case 72: // slow burst
       brightness = BRIGHTNESS;
@@ -743,9 +744,8 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
         sonar = false;
         brightness = BRIGHTNESS;
       }
-      else {
+      else
         sonar = true;
-      }
       break;
     // mode changes (C7+)
     case 96: // mode 0
@@ -790,3 +790,4 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       break;
   }
 }
+

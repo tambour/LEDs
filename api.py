@@ -30,12 +30,12 @@ def send_letter(letter):
     while retries > 0:
         try:
             asd.write('{}'.format(letter))
-            print('++ wrote {} to board'.format(letter))
+            print('++ wrote {}'.format(letter))
             return
         except Exception as ex:
             print('!! send exception: {}'.format(str(ex)))
             retries -= 1
-
+    # send failed
     reconnect_loop()
 
 @app.route('/q/')

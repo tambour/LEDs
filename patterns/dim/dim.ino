@@ -177,7 +177,7 @@ void loop()
     else
       bright[0]-=4;
   
-    if(bright[0]>=252){
+    if(bright[0]>=252)
       dir = 0;
     else if(bright[0]<=180){
       dir = 1;
