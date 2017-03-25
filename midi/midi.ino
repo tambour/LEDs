@@ -1,7 +1,3 @@
-#include <nRF24L01.h>
-#include <RF24.h>
-#include <RF24_config.h>
-
 #include <SoftwareSerial.h>
 #include <MIDI.h>
 #include <FastLED.h>
@@ -546,7 +542,7 @@ void modeStateMachine(){
  * MIDI via computer keyboard
  */
 void getSerial(){
-  if(Serial.available() > 0){
+  if(Serial.available()){
     key = Serial.read();
     Serial.println(key);
     byte pitch = 0;
