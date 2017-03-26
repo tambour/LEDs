@@ -1,4 +1,4 @@
-  #include <SoftwareSerial.h>
+#include <SoftwareSerial.h>
 #include <FastLED.h>
 #include <MIDI.h>
 #include <math.h>
@@ -25,7 +25,7 @@ bool keyControl = true;
 int key = 0;
 
 // mode vars
-int mode = 4;
+int mode = 11;
 bool modeSetup = true;
 bool action = false;
 
@@ -475,6 +475,141 @@ void mode9(){
   }
 }
 
+/*
+ * Mode 10
+ * Random glow-points
+ */
+void mode10(){
+  if(modeSetup){
+    int adder = 1;
+    descending = 0;
+    counter = 0;
+    dir = 1;
+    for(int i=0; i<NUM_LEDS; i++){
+      directions[i] = 0;
+      colors[i] = 0;
+      bright[i] = hueStart + adder*dir;
+      adder += dir;
+      if(adder == (hueStop-hueStart))
+        dir = -1;
+      else if(adder == 0)
+        dir = 1;
+    }
+    int pos = random(0,NUM_LEDS);
+    directions[pos] = 1;
+    colors[pos] = 0;
+    dir = 1;
+    modeSetup = false;
+  }
+  for(int i=NUM_LEDS-1; i>=0; i--){
+    if(i == 0){
+      if(bright[1] == hueStart)
+        dir = 1;
+      else if(bright[1] == hueStop)
+        dir = -1;
+      bright[0] = bright[1] + dir;
+    }
+    else
+      bright[i] = bright[i-1];
+
+    led[i] = CHSV(bright[i],saturation,brightness);
+
+    if(directions[i] == 1 || directions[i] == -1){
+      colors[i] = colors[i] + 2*directions[i];
+      if(colors[i] > 255){
+        colors[i] = 255;
+        directions[i] = -1;
+      }
+      else if(colors[i] < 0){
+        colors[i] = 0;
+        directions[i] = 0;
+      }
+      led[i] = CHSV(bright[i], 0, colors[i]);
+    }
+  }
+  counter++;
+  if(counter > 10){
+    int pos = random(0, NUM_LEDS);
+    directions[pos] = 1;
+    colors[pos] = 0;
+    counter = 0;
+  }
+}
+
+/*
+ * Mode 11
+ * Palette gradient with runner
+ */
+void mode11(){
+  if(modeSetup){
+    int adder = 1;
+    descending = 0;
+    counter = 0;
+    value = 1;
+    dir = 1;
+    for(int i=0; i<NUM_LEDS; i++){
+      bright[i] = hueStart + adder*dir;
+      adder += dir;
+      if(adder == (hueStop-hueStart))
+        dir = -1;
+      else if(adder == 0)
+        dir = 1;
+    }
+    dir = 1;
+    modeSetup = false;
+  }
+  for(int i=NUM_LEDS-1; i>=0; i--){
+    if(i == 0){
+      if(bright[1] == hueStart)
+        dir = 1;
+      else if(bright[1] == hueStop)
+        dir = -1;
+      bright[0] = bright[1] + dir;
+    }
+    else
+      bright[i] = bright[i-1];
+
+    led[i] = CHSV(bright[i],saturation,brightness);
+
+    if(i == counter){
+      if(value == 1){
+        led[i] = CHSV(bright[i], 0, brightness);
+
+        for(int j=0; j<10; j++){
+          if(i+j < NUM_LEDS-1){
+            if(brightness + 10*j > 255)
+              led[i+j] = CHSV(bright[i], 0, brightness);
+            else
+              led[i+j] = CHSV(bright[i], 0, brightness+10*j);
+          }
+        }
+      }
+      else{
+        led[i] = CHSV(bright[i], 0, brightness);
+
+        for(int j=0; j<10; j++){
+          if(i+j < NUM_LEDS-1){
+            if(brightness - 10*j > 0)
+              led[i+j] = CHSV(bright[i], 0, brightness - 10*j);
+            else
+              led[i+j] = CHSV(bright[i], 0, 0);
+          }
+        }
+      }
+    }
+  }
+  if(counter >= NUM_LEDS-1){
+    counter = NUM_LEDS-1;
+    value = -1;
+  }
+  else if(counter <= 0){
+    counter = 0;
+    value = 1;
+  }
+  counter = counter + value;
+  delay(5);
+}
+
 
 void setup() {
   delay(200);
@@ -533,6 +668,12 @@ void modeStateMachine(){
       break;
     case 9:
       mode9();
+      break;
+    case 10:
+      mode10();
+      break;
+    case 11:
+      mode11();
       break;
   }
 }
@@ -614,6 +755,9 @@ void getSerial(){
         break;
       case 39:
         pitch = 106;
+        break;
+      case 122:
+        pitch = 107;
         break;
       // brightness
       case 255:
@@ -899,6 +1043,14 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       break;
     case 105: // mode 9
       mode = 9;
+      modeSetup = true;
+      break;
+    case 106: // mode 10
+      mode = 10;
+      modeSetup = true;
+      break;
+    case 107: // mode 11
+      mode = 11;
       modeSetup = true;
       break;
   }
