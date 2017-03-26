@@ -1,4 +1,4 @@
-#include <SoftwareSerial.h>
+  #include <SoftwareSerial.h>
 #include <FastLED.h>
 #include <MIDI.h>
 #include <math.h>
@@ -16,6 +16,7 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 // LED pointers, global brightness, hue, delay
 CRGB led[NUM_LEDS];
 int brightness = IDLE_BRIGHTNESS;
+int saturation = SATURATION;
 int hue = 120;
 int waitTime = 5;
 
@@ -147,7 +148,7 @@ void setSonarBrightness(){
  */
 void mode0(){
   for(int i=0; i<NUM_LEDS; i++)
-    led[i] = CHSV(hue,SATURATION,brightness);
+    led[i] = CHSV(hue,saturation,brightness);
 }
 
 /*
@@ -160,7 +161,7 @@ void mode1(){
     modeSetup = false;
   }
   for(int i=0; i<NUM_LEDS; i++)
-    led[i] = CHSV(hue+value,SATURATION,brightness);
+    led[i] = CHSV(hue+value,saturation,brightness);
   value+=2;
   if(value==255)
     value = 0;
@@ -172,7 +173,7 @@ void mode1(){
  */
 void mode2(){
   for(int i=0; i<NUM_LEDS; i++)
-    led[i] = CHSV(i+hue,SATURATION,brightness);
+    led[i] = CHSV(i+hue,saturation,brightness);
 }
 
 /* 
@@ -187,7 +188,7 @@ void mode3(){
     descending = 0;
   }
   for(int i=0; i<NUM_LEDS; i++){
-    led[i] = CHSV(bright[i]+hue, SATURATION, brightness);
+    led[i] = CHSV(bright[i]+hue, saturation, brightness);
     bright[i]++;
     if(bright[i]==255)
       bright[i]=0;
@@ -225,7 +226,7 @@ void mode4(){
     else
       bright[i] = bright[i-1];
 
-    led[i] = CHSV(bright[i],SATURATION,brightness);
+    led[i] = CHSV(bright[i],saturation,brightness);
   }
 }
 
@@ -290,11 +291,11 @@ void mode6(){
     for(int i=0; i<150; i++){
       if(directions[i] == 0){
         directions[i] = 1;
-        led[i] = CHSV(hueStart, SATURATION, value);
+        led[i] = CHSV(hueStart, saturation, value);
       }
       else{
         directions[i] = 0;
-        led[i] = CHSV(hueStop, SATURATION, value);
+        led[i] = CHSV(hueStop, saturation, value);
       }
     }
     action = false;
@@ -302,9 +303,9 @@ void mode6(){
   else{
     for(int i=0; i<150; i++)
       if(directions[i] == 0)
-        led[i] = CHSV(hueStart, SATURATION, value);
+        led[i] = CHSV(hueStart, saturation, value);
       else
-        led[i] = CHSV(hueStop, SATURATION, value);
+        led[i] = CHSV(hueStop, saturation, value);
   }
   
   if(dir == 1)
@@ -331,7 +332,7 @@ void mode6(){
         directions[i] = 1;
       else
         directions[i] = -1;
-      led[i] = CHSV(colors[i], SATURATION, bright[i]);
+      led[i] = CHSV(colors[i], saturation, bright[i]);
     }
     counter = 0;
     modeSetup = false;
@@ -349,7 +350,7 @@ void mode6(){
         directions[i] = 1;
         bright[i] = 160;
       }
-      led[i] = CHSV(colors[i], SATURATION, bright[i]);
+      led[i] = CHSV(colors[i], saturation, bright[i]);
     }
     if(action){
       action = false;
@@ -414,7 +415,7 @@ void mode8(){
         bright[i] = bright[i-1];
 
       if(directions[i] == 0)
-        led[i] = CHSV(bright[i],SATURATION,brightness);
+        led[i] = CHSV(bright[i],saturation,brightness);
       else{
         led[i] = CRGB::White;
         directions[i] = 0;
@@ -437,7 +438,7 @@ void mode8(){
         bright[i] = bright[i-1];
 
       if(directions[i] == 0)
-        led[i] = CHSV(bright[i],SATURATION,brightness);
+        led[i] = CHSV(bright[i],saturation,brightness);
       else{
         led[i] = CRGB::White;
         directions[i] = 0;
@@ -491,7 +492,7 @@ void setup() {
   pinMode(ECHO, INPUT);
 
   for(int i=0; i<NUM_LEDS; i++)
-    led[i] = CHSV(hue,SATURATION,brightness);
+    led[i] = CHSV(hue,saturation,brightness);
 
   FastLED.show();
 }
@@ -614,9 +615,122 @@ void getSerial(){
       case 39:
         pitch = 106;
         break;
+      // brightness
+      case 255:
+        brightness = 255;
+        break;
+      case 254:
+        brightness = 240;
+        break;
+      case 253:
+        brightness = 225;
+        break;
+      case 252:
+        brightness = 210;
+        break;
+      case 251:
+        brightness = 195;
+        break;
+      case 250:
+        brightness = 180;
+        break;
+      case 249:
+        brightness = 165;
+        break;
+      case 248:
+        brightness = 150;
+        break;
+      case 247:
+        brightness = 135;
+        break;
+      case 246:
+        brightness = 120;
+        break;
+      case 245:
+        brightness = 105;
+        break;
+      case 244:
+        brightness = 90;
+        break;
+      case 243:
+        brightness = 75;
+        break;
+      case 242:
+        brightness = 60;
+        break;
+      case 241:
+        brightness = 45;
+        break;
+      case 240:
+        brightness = 30;
+        break;
+      case 239:
+        brightness = 15;
+        break;
+      case 238:
+        brightness = 0;
+        break;
+
+      // saturation
+      case 237:
+        saturation = 255;
+        break;
+      case 236:
+        saturation = 240;
+        break;
+      case 235:
+        saturation = 225;
+        break;
+      case 234:
+        saturation = 210;
+        break;
+      case 233:
+        saturation = 195;
+        break;
+      case 232:
+        saturation = 180;
+        break;
+      case 231:
+        saturation = 165;
+        break;
+      case 230:
+        saturation = 150;
+        break;
+      case 229:
+        saturation = 135;
+        break;
+      case 228:
+        saturation = 120;
+        break;
+      case 227:
+        saturation = 105;
+        break;
+      case 226:
+        saturation = 90;
+        break;
+      case 225:
+        saturation = 75;
+        break;
+      case 224:
+        saturation = 60;
+        break;
+      case 223:
+        saturation = 45;
+        break;
+      case 222:
+        saturation = 30;
+        break;
+      case 221:
+        saturation = 15;
+        break;
+      case 220:
+        saturation = 0;
+        break;
+      
     }
     key = -1;
-    HandleNoteOn(pitch,pitch,pitch);
+    if (pitch > 0)
+      HandleNoteOn(pitch,pitch,pitch);
   }
 }
 
