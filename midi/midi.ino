@@ -729,8 +729,7 @@ void getSerial(){
       
     }
     key = -1;
-    if (pitch > 0)
-      HandleNoteOn(pitch,pitch,pitch);
+    HandleNoteOn(pitch,pitch,pitch);
   }
 }
 
@@ -797,17 +796,17 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
     case 72: // slow burst
       brightness = BRIGHTNESS;
       setGradientHue();
-      descending = 1;
+      descending = 2;
       break;
     case 73: // medium burst
       brightness = BRIGHTNESS;
       setGradientHue();
-      descending = 2;
+      descending = 3;
       break;
     case 74: // fast burst
       brightness = BRIGHTNESS;
       setGradientHue();
-      descending = 7;
+      descending = 6;
       break;
     case 75: // slow swell
       brightness = 0;
