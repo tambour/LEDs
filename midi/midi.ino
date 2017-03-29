@@ -25,7 +25,7 @@ bool keyControl = true;
 int key = 0;
 
 // mode vars
-int mode = 11;
+int mode = 3;
 bool modeSetup = true;
 bool action = false;
 
@@ -36,10 +36,15 @@ int hueStop = 192;
 int hueDirection = 1;
 
 // sonar vars
-int targetBrightness = 180;
 int brightnessStep = 3;
 int descending = 0;
 bool sonar = false;
+
+// fade brightness / saturation
+bool fadeBrightness = false;
+bool fadeSaturation = false;
+int targetBrightness = 128;
+int targetSaturation = 255;
 
 // general purpose vars
 int bright[NUM_LEDS];
@@ -69,6 +74,9 @@ void loop()
   if(descending != 0)
     setBurstBrightness();
 
+  if(fadeBrightness || fadeSaturation)
+    doFade();
+
   // choose routine based on mode
   modeStateMachine();
 
@@ -93,6 +101,22 @@ void setBurstBrightness(){
       brightness = IDLE_BRIGHTNESS ;
     }
   }
+}
+
+void doFade(){
+  if(brightness == targetBrightness)
+    fadeBrightness = false;
+  else if(brightness > targetBrightness)
+    brightness--;
+  else if(brightness < targetBrightness)
+    brightness++;
+
+  if(saturation == targetSaturation)
+    fadeSaturation = false;
+  else if(saturation > targetSaturation)
+    saturation--;
+  else if(saturation < targetSaturation)
+    saturation++;
 }
 
 void setGradientHue(){
@@ -689,6 +713,8 @@ void getSerial(){
     byte pitch = 0;
 
     switch(key){
+
+      //actions
       case 113:
         pitch = 71;
         break;
@@ -722,6 +748,7 @@ void getSerial(){
       case 91:
         pitch = 81;
         break;
+
       // modes
       case 97:
         pitch = 96;
@@ -759,118 +786,58 @@ void getSerial(){
       case 122:
         pitch = 107;
         break;
+
       // brightness
-      case 255:
-        brightness = 255;
+      case 32:
+        targetBrightness = 0;
+        fadeBrightness = true;
         break;
-      case 254:
-        brightness = 240;
+      case 33:
+        targetBrightness = 51;
+        fadeBrightness = true;
         break;
-      case 253:
-        brightness = 225;
+      case 34:
+        targetBrightness = 102;
+        fadeBrightness = true;
         break;
-      case 252:
-        brightness = 210;
+      case 35:
+        targetBrightness = 153;
+        fadeBrightness = true;
         break;
-      case 251:
-        brightness = 195;
+      case 36:
+        targetBrightness = 204;
+        fadeBrightness = true;
         break;
-      case 250:
-        brightness = 180;
-        break;
-      case 249:
-        brightness = 165;
-        break;
-      case 248:
-        brightness = 150;
-        break;
-      case 247:
-        brightness = 135;
-        break;
-      case 246:
-        brightness = 120;
-        break;
-      case 245:
-        brightness = 105;
-        break;
-      case 244:
-        brightness = 90;
-        break;
-      case 243:
-        brightness = 75;
-        break;
-      case 242:
-        brightness = 60;
-        break;
-      case 241:
-        brightness = 45;
-        break;
-      case 240:
-        brightness = 30;
-        break;
-      case 239:
-        brightness = 15;
-        break;
-      case 238:
-        brightness = 0;
+      case 37:
+        targetBrightness = 255;
+        fadeBrightness = true;
         break;
 
       // saturation
-      case 237:
-        saturation = 255;
+      case 38:
+        targetSaturation = 0;
+        fadeSaturation = true;
         break;
-      case 236:
-        saturation = 240;
+      case 40:
+        targetSaturation = 51;
+        fadeSaturation = true;
         break;
-      case 235:
-        saturation = 225;
+      case 41:
+        targetSaturation = 102;
+        fadeSaturation = true;
         break;
-      case 234:
-        saturation = 210;
+      case 42:
+        targetSaturation = 153;
+        fadeSaturation = true;
         break;
-      case 233:
-        saturation = 195;
+      case 43:
+        targetSaturation = 204;
+        fadeSaturation = true;
         break;
-      case 232:
-        saturation = 180;
+      case 44:
+        targetSaturation = 255;
+        fadeSaturation = true;
         break;
-      case 231:
-        saturation = 165;
-        break;
-      case 230:
-        saturation = 150;
-        break;
-      case 229:
-        saturation = 135;
-        break;
-      case 228:
-        saturation = 120;
-        break;
-      case 227:
-        saturation = 105;
-        break;
-      case 226:
-        saturation = 90;
-        break;
-      case 225:
-        saturation = 75;
-        break;
-      case 224:
-        saturation = 60;
-        break;
-      case 223:
-        saturation = 45;
-        break;
-      case 222:
-        saturation = 30;
-        break;
-      case 221:
-        saturation = 15;
-        break;
-      case 220:
-        saturation = 0;
-        break;
-      
     }
     key = -1;
     HandleNoteOn(pitch,pitch,pitch);
@@ -879,62 +846,7 @@ void getSerial(){
 
 void HandleNoteOn(byte channel, byte pitch, byte velocity) {
   switch(pitch){
-    case 60: // increment mode
-      switch(mode){
-        case 0:
-          mode = 1;
-          break;
-        case 1:
-          mode = 2;
-          break;
-        case 2:
-          mode = 3;
-          break;
-        case 3:
-          mode = 4;
-          break;
-        case 4:
-          mode = 5;
-          break;
-        case 5:
-          mode = 6;
-          break;
-        case 6:
-          mode = 7;
-          break;
-        case 7:
-          mode = 8;
-          break;
-        case 8:
-          mode = 9;
-          break;
-        case 9:
-          mode = 0;
-          break;
-      }
-      modeSetup = true;
-      break;
-    case 62:
-      hue+=50;
-      break;
-    case 64:
-      brightness-=20;
-      if(brightness < 0)
-        brightness = 0;
-      break;
-    case 65:
-      brightness+=20;
-      if(brightness > 255)
-        brightness = 255;
-      break;
-    case 67:
-      waitTime -= 5;
-      if(waitTime < 0)
-        waitTime = 0;
-    case 69:
-      waitTime += 5;
-      break;
-    case 71: // action key
+    case 71: // action
       action = true;
       break;
     case 72: // slow burst
@@ -1055,4 +967,5 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       break;
   }
 }
+
 
