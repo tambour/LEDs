@@ -42,35 +42,37 @@ def send_letter(letter):
 
 @app.route('/brightness/<path:choice>/')
 def brightness(choice):
-    if choice == 0:
+    if int(choice) == 0:
         send_letter(' ')
-    elif choice == 1:
+        print('---- sent space')
+    elif int(choice) == 1:
         send_letter('!')
-    elif choice == 2:
+        print('---- sent exclamation')
+    elif int(choice) == 2:
         send_letter('\"')
-    elif choice == 3:
+    elif int(choice) == 3:
         send_letter('#')
-    elif choice == 4:
+    elif int(choice) == 4:
         send_letter('$')
-    elif choice == 5:
+    elif int(choice) == 5:
         send_letter('%')
+    return '<h2>Sent {}</h2>'.format(choice)
 
 @app.route('/saturation/<choice>/')
 def saturation(choice):
-    if choice == 0:
+    if int(choice) == 0:
         send_letter('&')
-    elif choice == 1:
+    elif int(choice) == 1:
         send_letter('(')
-    elif choice == 2:
+    elif int(choice) == 2:
         send_letter(')')
-    elif choice == 3:
+    elif int(choice) == 3:
         send_letter('*')
-    elif choice == 4:
+    elif int(choice) == 4:
         send_letter('+')
-    elif choice == 5:
+    elif int(choice) == 5:
         send_letter(',')
-
-
+    return '<h2>Sent {}</h2>'.format(choice)
 
 @app.route('/mode/<choice>/')
 def action_key(choice):
@@ -118,172 +120,6 @@ def action_key(choice):
         send_letter(choice)
     return '<h2>Sent {}</h2>'.format(choice)
 
-@app.route('/w/')
-def slow_fade():
-    send_letter('w')
-    return default_return
-
-@app.route('/e/')
-def medium_fade():
-    send_letter('e')
-    return default_return
-
-@app.route('/r/')
-def quick_fade():
-    send_letter('r')
-    return default_return
-
-@app.route('/t/')
-def swell():
-    send_letter('t')
-    return default_return
-
-@app.route('/y/')
-def stahp():
-    send_letter('y')
-    return default_return
-
-@app.route('/u/')
-def pal1():
-    send_letter('u')
-    return default_return
-
-@app.route('/i/')
-def pal2():
-    send_letter('i')
-    return default_return
-
-@app.route('/o/')
-def pal3():
-    send_letter('o')
-    return default_return
-
-@app.route('/p/')
-def pal4():
-    send_letter('p')
-    return default_return
-
-@app.route('/left-bracket/')
-def pal5():
-    send_letter('[')
-    return default_return
-
-@app.route('/right-bracket/')
-def pal6():
-    send_letter(']')
-    return default_return
-
-@app.route('/a/')
-def mode0():
-    send_letter('a')
-    return default_return
-
-@app.route('/s/')
-def mode1():
-    send_letter('s')
-    return default_return
-
-@app.route('/d/')
-def mode2():
-    send_letter('d')
-    return default_return
-
-@app.route('/f/')
-def mode3():
-    send_letter('f')
-    return default_return
-
-@app.route('/g/')
-def mode4():
-    send_letter('g')
-    return default_return
-
-@app.route('/h/')
-def mode5():
-    send_letter('h')
-    return default_return
-
-@app.route('/j/')
-def mode6():
-    send_letter('j')
-    return default_return
-
-@app.route('/k/')
-def mode7():
-    send_letter('k')
-    return default_return
-
-@app.route('/l/')
-def mode8():
-    send_letter('l')
-    return default_return
-
-@app.route('/semi-colon/')
-def mode9():
-    send_letter(';')
-    return default_return
-
-@app.route('/apostrophe/')
-def mode10():
-    send_letter('\'')
-    return default_return
-
-@app.route('/z/')
-def mode11():
-    send_letter('z')
-    return default_return
-
-@app.route('/b0/')
-def brightness0():
-    send_letter(' ')
-    return default_return
-@app.route('/b1/')
-def brightness1():
-    send_letter('!')
-    return default_return
-@app.route('/b2/')
-def brightness2():
-    send_letter('\"')
-    return default_return
-@app.route('/b3/')
-def brightness3():
-    send_letter('#')
-    return default_return
-@app.route('/b4/')
-def brightness4():
-    send_letter('$')
-    return default_return
-@app.route('/b5/')
-def brightness5():
-    send_letter('%')
-    return default_return
-
-@app.route('/s0/')
-def saturation0():
-    send_letter('&')
-    return default_return
-@app.route('/s1/')
-def saturation1():
-    send_letter('(')
-    return default_return
-@app.route('/s2/')
-def saturation2():
-    send_letter(')')
-    return default_return
-@app.route('/s3/')
-def saturation3():
-    send_letter('*')
-    return default_return
-@app.route('/s4/')
-def saturation4():
-    send_letter('+')
-    return default_return
-@app.route('/s5/')
-def saturation5():
-    send_letter(',')
-    return default_return
-
-
 if __name__ == '__main__':
-    #app.run(host='10.10.10.172', debug=True)
-    app.run(host='192.168.1.172', debug=True)
+    app.run(host='10.10.10.172', debug=True)
+    #app.run(host='192.168.1.172', debug=True)
