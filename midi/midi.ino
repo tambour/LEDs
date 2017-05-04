@@ -7,9 +7,10 @@
 #define IDLE_BRIGHTNESS 100
 #define SATURATION 255
 #define NUM_LEDS 150
-#define DATA_PIN 13 //8
+#define DATA_PIN 8 //13
 #define TRIG 9
 #define ECHO 10
+#define SOUND_PIN 4
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 
@@ -24,8 +25,12 @@ int waitTime = 5;
 bool keyControl = true;
 int key = 0;
 
+// local sound reading
+int soundValue = HIGH;
+int soundCooldown = 10;
+
 // mode vars
-int mode = 3;
+int mode = 4;
 bool modeSetup = true;
 bool action = false;
 
@@ -73,6 +78,9 @@ void loop()
   // set sonar brightness
   //if(sonar)
     //setSonarBrightness();
+
+  // read sound sensor
+  checkForSound();
     
   // set burst brightness
   if(descending != 0)
@@ -89,9 +97,38 @@ void loop()
   delay(waitTime);
 }
 
+void checkForSound(){
+  soundValue = analogRead(SOUND_PIN);
+  if(soundValue > 10 && soundCooldown > 0)
+    Serial.println(1);
+  else if(soundValue > 10)
+    Serial.println(soundValue);
+
+  if(soundValue > 15 && soundCooldown == 0){
+    brightness = BRIGHTNESS;
+    if(mode != 3)
+      setGradientHue();
+    descending = 224;
+    fadeBrightness = false;
+    soundCooldown = 3;
+  }
+  else{
+    if(soundCooldown > 0)
+      soundCooldown--;
+  }
+  
+}
 
 void setBurstBrightness(){
-  if(descending > 0){
+  if(descending == 224){
+    // magic number for kick drum burst
+    brightness -= 2;
+    if(brightness <= targetBrightness || brightness < 0){
+      descending = 0;
+      brightness = targetBrightness;
+    }
+  }
+  else if(descending > 0){
     brightness -= descending;
     if(brightness <= 0){
       descending = 0;
@@ -383,11 +420,85 @@ void mode4(){
   }
 }
 
+/*
+ * looping 15 fix?
+ */
+void mode5(){
+  if(modeSetup){
+    descending = 0;
+    target = hueStart;
+    value = 1;
+    modeSetup = false;
+
+    counter = 0;
+    for(int i=0; i<NUM_LEDS; i++){
+      // mark every 15th light
+      directions[i] = 0;
+      if(i==0)
+        directions[i] = 1;
+      if(counter == 15){
+        directions[i] = 1;
+        counter = 0;
+      }
+
+      counter++;
+    }
+  }
+  else{
+    if(action){
+      target += 8*value;
+      if(target >= hueStop){
+        target = hueStop;
+        value = -1;
+      }
+      else if(target <= hueStart){
+        target = hueStart;
+        value = 1;
+      }
+      action = false;
+    }
+    color = target;
+    dir = 1;
+    for(int i=NUM_LEDS-1; i>=0; i--){
+      if(dir==1){
+        if(color >= hueStop){
+          dir = -1;
+          led[i] = CHSV(color--,saturation,brightness);
+        }
+        else{
+          led[i] = CHSV(color++,saturation,brightness);
+        }
+      }
+      else{
+        if(color <= hueStart){
+          dir = 1;
+          led[i] = CHSV(color++,saturation,brightness);
+        }
+        else{
+          led[i] = CHSV(color--,saturation,brightness);
+        }
+      }
+
+      if(directions[i] == 1){\
+        led[i] = CHSV(0,0,255);
+
+        directions[i] = 0;
+
+        if(i!=NUM_LEDS-1)
+          directions[i+1] = 1;
+
+        if(i == 15)
+          directions[0] = 1;
+      }
+    }
+  }
+  delay(10);
+}
  /*
   * Mode 5
   * Looping 15 apart
   */
-void mode5(){
+void mode15(){
   if(modeSetup){
     int adder = 1;
     for(int i=0; i<NUM_LEDS; i++){
@@ -566,7 +677,7 @@ void mode7(){
       bright[i] = bright[i-1];
 
     bool active = false;
-    for(int k=0; k<8; k++){
+    for(int k=0; k<16; k++){
       if(directions[k]==i)
         active = true;
     }
@@ -583,6 +694,13 @@ void mode7(){
         for(int j=0; j<8; j++){
           if(i-j >= 0){
             directions[j] = i-j;
+            led[i-j] = CHSV(bright[i], 0, brightness);
+          }
+        }
+
+        for(int j=8; j<16; j++){
+          if(i-j >= 0){
+            directions[j] = i-j;
             if(brightness/(j+1) > 0)
               led[i-j] = CHSV(bright[i], 0, brightness/(j+1));
             else
@@ -594,6 +712,13 @@ void mode7(){
         led[i] = CHSV(bright[i], 0, brightness);
 
         for(int j=0; j<8; j++){
+          if(i+j < NUM_LEDS-1){
+            directions[j] = i+j;
+            led[i+j] = CHSV(bright[i], 0, brightness);
+          }
+        }
+
+        for(int j=8; j<16; j++){
           if(i+j < NUM_LEDS-1){
             directions[j] = i+j;
             if(brightness/(j+1) > 0)
@@ -857,8 +982,8 @@ void setup() {
     Serial.begin(9600);
 
   // sonar
-  pinMode(TRIG, OUTPUT);
-  pinMode(ECHO, INPUT);
+  //pinMode(TRIG, OUTPUT);
+  //pinMode(ECHO, INPUT);
 
   for(int i=0; i<NUM_LEDS; i++)
     led[i] = CHSV(hue,saturation,brightness);

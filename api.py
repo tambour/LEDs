@@ -4,7 +4,6 @@ import time
 
 app = Flask(__name__)
 default_return = '<h2>Success!</h2>'
-boom = True
 
 def reconnect_loop(port=0):
     asd = None
