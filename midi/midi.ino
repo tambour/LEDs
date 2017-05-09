@@ -99,18 +99,16 @@ void loop()
 
 void checkForSound(){
   soundValue = analogRead(SOUND_PIN);
-  if(soundValue > 10 && soundCooldown > 0)
-    Serial.println(1);
-  else if(soundValue > 10)
+  if(soundValue > 400)
     Serial.println(soundValue);
 
-  if(soundValue > 15 && soundCooldown == 0){
+  if(soundValue > 400){
     brightness = BRIGHTNESS;
+    action = true;
     if(mode != 3)
       setGradientHue();
     descending = 224;
     fadeBrightness = false;
-    soundCooldown = 3;
   }
   else{
     if(soundCooldown > 0)
@@ -122,7 +120,7 @@ void checkForSound(){
 void setBurstBrightness(){
   if(descending == 224){
     // magic number for kick drum burst
-    brightness -= 2;
+    brightness -= 3;
     if(brightness <= targetBrightness || brightness < 0){
       descending = 0;
       brightness = targetBrightness;
