@@ -11,6 +11,10 @@
 #define TRIG 9
 #define ECHO 10
 #define SOUND_PIN 4
+#define SOUND_THRESHOLD 400
+#define SOUND_SENSOR 224
+#define DRUM_THRESHOLD 1023
+#define PRINT_THRESHOLD 512
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 
@@ -19,38 +23,45 @@ CRGB led[NUM_LEDS];
 int brightness = IDLE_BRIGHTNESS;
 int saturation = SATURATION;
 int hue = 120;
-int waitTime = 5;
+int wait_time = 5;
 
 // qwerty input
-bool keyControl = true;
+bool key_control = true;
 int key = 0;
 
 // local sound reading
-int soundValue = HIGH;
-int soundCooldown = 10;
+int sound_sensor = false;
+int sound_value = HIGH;
+
+// piezo drum sensor
+bool drum_sensor = true;
+int drum_value = HIGH;
+
+// direct midi input
+bool midi_input = false;
 
 // mode vars
-int mode = 4;
-bool modeSetup = true;
+int mode = 3;
+bool mode_setup = true;
 bool action = false;
 
 // gradient vars
-int hueStep = 8;
-int hueStart = 128;
-int hueStop = 192;
-int hueDirection = 1;
+int hue_step = 8;
+int hue_start = 128;
+int hue_stop = 192;
+int hue_direction = 1;
 
 // sonar vars
-int brightnessStep = 3;
+bool sonar_sensor = false;
+int brightness_step = 3;
 int descending = 0;
-bool sonar = false;
 
 // fade brightness / saturation
-bool fadeBrightness = false;
-bool fadeSaturation = false;
-int targetBrightness = 128;
-int targetSaturation = 255;
-int fadeRate = 1;
+bool fade_brightness = false;
+bool fade_saturation = false;
+int target_brightness = IDLE_BRIGHTNESS;
+int target_saturation = SATURATION;
+int fade_rate = 1;
 
 // general purpose vars
 int bright[NUM_LEDS];
@@ -63,30 +74,63 @@ int target = 0;
 int index = 0;
 int color = 0;
 
-/*
- * Arduino Loop
- */
-void loop()
-{
+// debug print helpers
+int print_count = 0;
+int max_print = 0;
+int print_dir = 1;
+
+
+void setup() {
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(led, NUM_LEDS);
+  FastLED.setBrightness(BRIGHTNESS);
+
+  if(midi_input){
+    MIDI.begin(MIDI_CHANNEL_OMNI);
+    MIDI.setHandleNoteOn(HandleNoteOn);
+  }
+
+  // qwerty to midi
+  if(key_control)
+    Serial.begin(9600);
+
+  // sonar
+  if(sonar_sensor){
+    pinMode(TRIG, OUTPUT);
+    pinMode(ECHO, INPUT);
+  }
+  
+  // initial LED programming
+  for(int i=0; i<NUM_LEDS; i++)
+    led[i] = CHSV(hue,saturation,brightness);
+
+  FastLED.show();
+}
+
+void loop(){
   // get MIDI
   MIDI.read();
 
   // get qwerty keys
-  if(keyControl)
+  if(key_control)
     getSerial();
 
-  // set sonar brightness
-  //if(sonar)
-    //setSonarBrightness();
+  // poll drum sensor
+  if(drum_sensor)
+    listenForDrums();
 
-  // read sound sensor
-  checkForSound();
-    
-  // set burst brightness
+  // poll sound sensor
+  if(sound_sensor)
+    listenForSound();
+
+  // poll sonar sensor
+  if(sonar_sensor)
+    listenForSonar();
+
+  // increment fade/swell
   if(descending != 0)
     setBurstBrightness();
 
-  if(fadeBrightness || fadeSaturation)
+  if(fade_brightness || fade_saturation)
     doFade();
 
   // choose routine based on mode
@@ -94,38 +138,90 @@ void loop()
 
   // apply changes and delay
   FastLED.show();
-  delay(waitTime);
+  delay(wait_time);
 }
 
-void checkForSound(){
-  soundValue = analogRead(SOUND_PIN);
-  if(soundValue > 400)
-    Serial.println(soundValue);
+void listenForDrums(){
+  drum_value = analogRead(0);
 
-  if(soundValue > 400){
-    brightness = BRIGHTNESS;
+  if(drum_value >= PRINT_THRESHOLD){
+
+    // lots of debug printing since
+    // we have to calibrate this
+    if(key_control){
+
+      if(drum_value > max_print)
+        max_print = drum_value;
+
+      if(drum_value < 1000)
+        Serial.print(" ");
+
+      Serial.print(drum_value);
+      Serial.print(" ");
+
+      for(int i=0; i<print_count; i++)
+        Serial.print("-");
+
+      if(drum_value >= DRUM_THRESHOLD){
+        for(int i=0; i<18-print_count; i++)
+          Serial.print(" ");
+        Serial.print(" !! - ");
+        if(drum_value < 1000)
+          Serial.print(" ");
+        Serial.print(drum_value);
+      }
+
+      Serial.println("");
+      print_count += print_dir;
+      if(print_count >= 16)
+        print_dir=-1;
+      if(print_count <= 0)
+        print_dir=1;
+    }
+
+    // drums trigger mode actions
     action = true;
-    if(mode != 3)
-      setGradientHue();
-    descending = 224;
-    fadeBrightness = false;
   }
-  else{
-    if(soundCooldown > 0)
-      soundCooldown--;
-  }
-  
+}
+
+void listenForSound(){
+
+  // poll for measurement [0-1023]
+  sound_value = analogRead(SOUND_PIN);
+
+  if(sound_value > SOUND_THRESHOLD){
+
+    // print measurement if debugging
+    if(key_control)
+      Serial.println(sound_value);
+
+    // set max brightness for fade
+    brightness = BRIGHTNESS;
+
+    // do action for mode
+    action = true;
+
+    // advance hue
+    setGradientHue();
+
+    // set magic number for sound-triggered descent
+    descending = SOUND_SENSOR;
+
+    // cancel any active brightness fade
+    fade_brightness = false;
+  } 
 }
 
 void setBurstBrightness(){
-  if(descending == 224){
-    // magic number for kick drum burst
+  // sensor-triggered fade to idle brightness
+  if(descending == SOUND_SENSOR){
     brightness -= 3;
-    if(brightness <= targetBrightness || brightness < 0){
+    if(brightness <= target_brightness || brightness < 0){
       descending = 0;
-      brightness = targetBrightness;
+      brightness = target_brightness;
     }
   }
+  // brightness fade to 0
   else if(descending > 0){
     brightness -= descending;
     if(brightness <= 0){
@@ -133,6 +229,7 @@ void setBurstBrightness(){
       brightness = 0;
     }
   }
+  // brightness swell to idle
   else if(descending < 0){
     brightness -= descending;
     if(brightness >= IDLE_BRIGHTNESS){
@@ -144,47 +241,54 @@ void setBurstBrightness(){
 
 void doFade(){
 
-  if(targetBrightness < brightness){
-    brightness -= fadeRate;
-    if(brightness <= targetBrightness){
-      fadeBrightness = false;
-      brightness = targetBrightness;
+  // fade brightness
+  if(target_brightness < brightness){
+    brightness -= fade_rate;
+    if(brightness <= target_brightness){
+      fade_brightness = false;
+      brightness = target_brightness;
     }
   }
   else{
-    brightness += fadeRate;
-    if(brightness >= targetBrightness){
-      fadeBrightness = false;
-      brightness = targetBrightness;
+    brightness += fade_rate;
+    if(brightness >= target_brightness){
+      fade_brightness = false;
+      brightness = target_brightness;
     }
   }
 
-  if(targetSaturation < saturation){
-    saturation -= fadeRate;
-    if(saturation <= targetSaturation){
-      fadeSaturation = false;
-      saturation = targetSaturation;
+  // fade saturation
+  if(target_saturation < saturation){
+    saturation -= fade_rate;
+    if(saturation <= target_saturation){
+      fade_saturation = false;
+      saturation = target_saturation;
     }
   }
   else{
-    saturation += fadeRate;
-    if(saturation >= targetSaturation){
-      fadeSaturation = false;
-      saturation = targetSaturation;
+    saturation += fade_rate;
+    if(saturation >= target_saturation){
+      fade_saturation = false;
+      saturation = target_saturation;
     }
   }
 }
 
 void setGradientHue(){
-  hue += hueStep * hueDirection;
-  if(hue >= hueStop)
-    hueDirection = -1;
-  else if(hue <= hueStart)
-    hueDirection = 1;
+  // advance hue
+  if(mode == 3)
+    return;
+  hue += hue_step * hue_direction;
+  if(hue >= hue_stop)
+    hue_direction = -1;
+  else if(hue <= hue_start)
+    hue_direction = 1;
 }
 
-void setSonarBrightness(){
-  if(brightness == targetBrightness){
+void listenForSonar(){
+  // set brightness based on sonar distance reading
+  // BAD: makes timing unreliable
+  if(brightness == target_brightness){
     long duration, distance;
     digitalWrite(TRIG, LOW);
     delayMicroseconds(2);
@@ -194,53 +298,52 @@ void setSonarBrightness(){
     duration = pulseIn(ECHO, HIGH);
     distance = (duration/2) / 29.1;
     if(distance <= 50 && distance != 0){
-      targetBrightness = int(5*distance + 5);
-      if(targetBrightness > 255)
-        targetBrightness = 255;
-      else if(targetBrightness < 0)
-        targetBrightness = 0;
+      target_brightness = int(5*distance + 5);
+      if(target_brightness > 255)
+        target_brightness = 255;
+      else if(target_brightness < 0)
+        target_brightness = 0;
     }    
   }
-  if(brightness != targetBrightness){
-    if(targetBrightness > brightness){
-      brightnessStep = int((targetBrightness - brightness)/32);
-      if(brightnessStep == 0)
-        brightnessStep = 1;
-      brightness += brightnessStep;
-      if(brightness > targetBrightness)
-        brightness = targetBrightness;
+  if(brightness != target_brightness){
+    if(target_brightness > brightness){
+      brightness_step = int((target_brightness - brightness)/32);
+      if(brightness_step == 0)
+        brightness_step = 1;
+      brightness += brightness_step;
+      if(brightness > target_brightness)
+        brightness = target_brightness;
     }
     else{
-      brightnessStep = int((brightness - targetBrightness)/32);
-      if(brightnessStep == 0)
-        brightnessStep = 1;
-      brightness -= brightnessStep;
-      if(brightness < targetBrightness)
-        brightness = targetBrightness;
+      brightness_step = int((brightness - target_brightness)/32);
+      if(brightness_step == 0)
+        brightness_step = 1;
+      brightness -= brightness_step;
+      if(brightness < target_brightness)
+        brightness = target_brightness;
     }
   }
 }
-
 
 /* 
  *  Mode 0
  *  Unmoving solid color
  */
 void mode0(){
-  if(modeSetup){
-    hue = hueStart;
+  if(mode_setup){
+    hue = hue_start;
     dir = 1;
-    modeSetup = false;
+    mode_setup = false;
   }
   if(action){
     hue += 8*dir;
-    if(hue >= hueStop){
+    if(hue >= hue_stop){
       dir = -1;
-      hue = hueStop;
+      hue = hue_stop;
     }
-    else if(hue <= hueStart){
+    else if(hue <= hue_start){
       dir = 1;
-      hue = hueStart;
+      hue = hue_start;
     }
     action = false;
   }
@@ -253,13 +356,13 @@ void mode0(){
  *  Moving solid color
  */
 void mode1(){
-  if(modeSetup){
+  if(mode_setup){
     dir = 1;
     color=0;
-    target = hueStart + dir;
-    modeSetup = false;
+    target = hue_start + dir;
+    mode_setup = false;
   }
-  if(hueStart == 0 && hueStop == 255){
+  if(hue_start == 0 && hue_stop == 255){
     if(action){
       dir *= -1;
       action = false;
@@ -280,12 +383,12 @@ void mode1(){
     action = false;
     }
     target += dir;
-    if(target >= hueStop){
-      target = hueStop;
+    if(target >= hue_stop){
+      target = hue_stop;
       dir = -1;
     }
-    else if(target <= hueStart){
-      target = hueStart;
+    else if(target <= hue_start){
+      target = hue_start;
       dir = 1;
     }
     for(int i=0; i<NUM_LEDS; i++)
@@ -300,21 +403,21 @@ void mode1(){
  *  Static Gradient
  */
 void mode2(){
-  if(modeSetup){
-    target = hueStart;
+  if(mode_setup){
+    target = hue_start;
     value = 0;
     directions[0] = 1;
-    modeSetup = false;
+    mode_setup = false;
   }
   else{
     if(action){
       target += 8*directions[0];
-      if(target >= hueStop){
-        target = hueStop;
+      if(target >= hue_stop){
+        target = hue_stop;
         directions[0] = -1;
       }
-      else if(target <= hueStart){
-        target = hueStart;
+      else if(target <= hue_start){
+        target = hue_start;
         directions[0] = 1;
       }
       action = false;
@@ -323,7 +426,7 @@ void mode2(){
     dir = 1;
     for(int i=0; i<NUM_LEDS; i++){
       if(dir==1){
-        if(color >= hueStop){
+        if(color >= hue_stop){
           dir = -1;
           led[i] = CHSV(color--,saturation,brightness);
         }
@@ -332,7 +435,7 @@ void mode2(){
         }
       }
       else{
-        if(color <= hueStart){
+        if(color <= hue_start){
           dir = 1;
           led[i] = CHSV(color++,saturation,brightness);
         }
@@ -349,25 +452,25 @@ void mode2(){
  *  Moving ROYGBIV gradient
  */
 void mode3(){
-  if(modeSetup){
+  if(mode_setup){
     for(int i=0; i<NUM_LEDS; i++)
       bright[i] = i;
-    modeSetup = false;
+    mode_setup = false;
     descending = 0;
     value = brightness;
   }
   if(action){
-    fadeBrightness = true;
-    fadeRate = 3;
-    targetBrightness = value-32;
-    if(targetBrightness < 0) 
-      targetBrightness = 0;
+    fade_brightness = true;
+    fade_rate = 3;
+    target_brightness = value-32;
+    if(target_brightness < 0) 
+      target_brightness = 0;
     
     action = false;
   }
   if(brightness == value-32){
-    fadeBrightness = true;
-    targetBrightness = value;
+    fade_brightness = true;
+    target_brightness = value;
   }
   for(int i=0; i<NUM_LEDS; i++){
     led[i] = CHSV(bright[i]+hue, saturation, brightness);
@@ -384,14 +487,14 @@ void mode3(){
  * Palette restricted gradient
  */
 void mode4(){
-  if(modeSetup){
+  if(mode_setup){
     descending = 0;
     int adder = 1;
     dir = 1;
     for(int i=0; i<NUM_LEDS; i++){
-      bright[i] = hueStart + adder*dir;
+      bright[i] = hue_start + adder*dir;
       adder += dir;
-      if(adder == (hueStop-hueStart)){
+      if(adder == (hue_stop-hue_start)){
         dir = -1;
         adder = 1;
       }
@@ -401,13 +504,13 @@ void mode4(){
       }
     }
     dir = 1;
-    modeSetup = false;
+    mode_setup = false;
   }
   for(int i=NUM_LEDS-1; i>=0; i--){
     if(i == 0){
-      if(bright[1] == hueStart)
+      if(bright[1] == hue_start)
         dir = 1;
-      else if(bright[1] == hueStop)
+      else if(bright[1] == hue_stop)
         dir = -1;
       bright[0] = bright[1] + dir;
     }
@@ -419,14 +522,15 @@ void mode4(){
 }
 
 /*
- * looping 15 fix?
+ * Mode 5
+ * Looping 15 apart
  */
 void mode5(){
-  if(modeSetup){
+  if(mode_setup){
     descending = 0;
-    target = hueStart;
+    target = hue_start;
     value = 1;
-    modeSetup = false;
+    mode_setup = false;
 
     counter = 0;
     for(int i=0; i<NUM_LEDS; i++){
@@ -445,12 +549,12 @@ void mode5(){
   else{
     if(action){
       target += 8*value;
-      if(target >= hueStop){
-        target = hueStop;
+      if(target >= hue_stop){
+        target = hue_stop;
         value = -1;
       }
-      else if(target <= hueStart){
-        target = hueStart;
+      else if(target <= hue_start){
+        target = hue_start;
         value = 1;
       }
       action = false;
@@ -459,7 +563,7 @@ void mode5(){
     dir = 1;
     for(int i=NUM_LEDS-1; i>=0; i--){
       if(dir==1){
-        if(color >= hueStop){
+        if(color >= hue_stop){
           dir = -1;
           led[i] = CHSV(color--,saturation,brightness);
         }
@@ -468,7 +572,7 @@ void mode5(){
         }
       }
       else{
-        if(color <= hueStart){
+        if(color <= hue_start){
           dir = 1;
           led[i] = CHSV(color++,saturation,brightness);
         }
@@ -490,78 +594,7 @@ void mode5(){
       }
     }
   }
-  delay(10);
-}
- /*
-  * Mode 5
-  * Looping 15 apart
-  */
-void mode15(){
-  if(modeSetup){
-    int adder = 1;
-    for(int i=0; i<NUM_LEDS; i++){
-      // mark every 15th light
-      directions[i] = 0;
-      if(i==0){
-        directions[i] = 1;
-      }
-      if(i%15 == 0)
-        directions[i] = 1;
-        
-      bright[i] = hueStart + adder*dir;
-      adder += dir;
-      if(adder == (hueStop-hueStart)){
-        dir = -1;
-        adder = 1;
-      }
-      else if(adder == 0){
-        dir = 1;
-        adder = 1;
-      }
-    }
-    
-    dir = 1;
-    value = 1;
-    target = 1;
-    descending = 0;
-    modeSetup = false;
-  }
-  for(int i=NUM_LEDS-1; i>=0; i--){
-    if(i == 0){
-      if(bright[1] == hueStart)
-        dir = 1;
-      else if(bright[1] == hueStop)
-        dir = -1;
-      bright[0] = bright[1] + dir;
-    }
-    else
-      bright[i] = bright[i-1];
-
-    if(action){
-      if(target == 1)
-        target = 0;
-      else
-        target = 1;
-      action = false;
-    }
-    
-    if(directions[i] == 0){
-      led[i] = CHSV(bright[i],saturation,brightness);
-    }
-    else{
-      if(target == 1)
-        led[i] = CHSV(0,0,255);
-      else
-        led[i] = CHSV(bright[i],saturation,16);
-      
-      directions[i] = 0;
-      directions[i+1] = 1;
-      if(i==15)
-        directions[0] = 1;
-    }
-  }
- 
-  delay(35);
+  delay(15);
 }
 
 /*
@@ -569,7 +602,7 @@ void mode15(){
  * Random glow-points
  */
 void mode6(){
-  if(modeSetup){
+  if(mode_setup){
     int adder = 1;
     descending = 0;
     counter = 0;
@@ -577,9 +610,9 @@ void mode6(){
     for(int i=0; i<NUM_LEDS; i++){
       directions[i] = 0;
       colors[i] = 0;
-      bright[i] = hueStart + adder*dir;
+      bright[i] = hue_start + adder*dir;
       adder += dir;
-      if(adder == (hueStop-hueStart)){
+      if(adder == (hue_stop-hue_start)){
         dir = -1;
         adder = 1;
       }
@@ -592,13 +625,13 @@ void mode6(){
     directions[pos] = 1;
     colors[pos] = 0;
     dir = 1;
-    modeSetup = false;
+    mode_setup = false;
   }
   for(int i=NUM_LEDS-1; i>=0; i--){
     if(i == 0){
-      if(bright[1] == hueStart)
+      if(bright[1] == hue_start)
         dir = 1;
-      else if(bright[1] == hueStop)
+      else if(bright[1] == hue_stop)
         dir = -1;
       bright[0] = bright[1] + dir;
     }
@@ -633,7 +666,7 @@ void mode6(){
       counter = 0;
     }
   }
-  delay(5);
+  delay(4);
 }
 
 /*
@@ -641,7 +674,7 @@ void mode6(){
  * Palette gradient with runner
  */
 void mode7(){
-  if(modeSetup){
+  if(mode_setup){
     int adder = 1;
     descending = 0;
     counter = 0;
@@ -649,9 +682,9 @@ void mode7(){
     dir = 1;
     for(int i=0; i<NUM_LEDS; i++){
       directions[i] = -1;
-      bright[i] = hueStart + adder*dir;
+      bright[i] = hue_start + adder*dir;
       adder += dir;
-      if(adder == (hueStop-hueStart)){
+      if(adder == (hue_stop-hue_start)){
         dir = -1;
         adder = 1;
       }
@@ -661,13 +694,13 @@ void mode7(){
       }
     }
     dir = 1;
-    modeSetup = false;
+    mode_setup = false;
   }
   for(int i=NUM_LEDS-1; i>=0; i--){
     if(i == 0){
-      if(bright[1] == hueStart)
+      if(bright[1] == hue_start)
         dir = 1;
-      else if(bright[1] == hueStop)
+      else if(bright[1] == hue_stop)
         dir = -1;
       bright[0] = bright[1] + dir;
     }
@@ -748,7 +781,7 @@ void mode7(){
     }
     action = false;
   }
-  delay(5);
+  delay(4);
 }
 
 /* 
@@ -756,9 +789,9 @@ void mode7(){
  *  Random pulses
  */
 void mode8(){
-  if(modeSetup){
+  if(mode_setup){
     descending = 0;
-    hue = hueStart;
+    hue = hue_start;
     dir = 1;
     for(int i=0; i<150; i++){
       bright[i] = random(20,brightness);
@@ -768,16 +801,16 @@ void mode8(){
       else
         directions[i] = -1;
     }
-    modeSetup = false;
+    mode_setup = false;
   }
   if(action){
     hue += 8 * dir;
-    if(hue >= hueStop){
-      hue = hueStop;
+    if(hue >= hue_stop){
+      hue = hue_stop;
       dir = -1;
     }
-    else if(hue <= hueStart){
-      hue = hueStart;
+    else if(hue <= hue_start){
+      hue = hue_start;
       dir = 1;
     }
     action = false;
@@ -793,7 +826,7 @@ void mode8(){
       directions[i] *= -1;
 
     // rainbow hue yields white glows
-    if(hueStart==0 && hueStop==255)
+    if(hue_start==0 && hue_stop==255)
       led[i] = CHSV(0,0,bright[i]);
     else
       led[i] = CHSV(hue,130,bright[i]);
@@ -806,7 +839,7 @@ void mode8(){
  *  alternating each two LEDs, pulsing
  */
 void mode9(){
-  if(modeSetup){
+  if(mode_setup){
     descending = 0;
     value = 160;
     dir = 1;
@@ -824,17 +857,17 @@ void mode9(){
       i++;
     }
     dir=1;
-    modeSetup = false;
+    mode_setup = false;
   }
   if(action){
     for(int i=0; i<150; i++){
       if(directions[i] == 0){
         directions[i] = 1;
-        led[i] = CHSV(hueStart, saturation, value);
+        led[i] = CHSV(hue_start, saturation, value);
       }
       else{
         directions[i] = 0;
-        led[i] = CHSV(hueStop, saturation, value);
+        led[i] = CHSV(hue_stop, saturation, value);
       }
     }
     action = false;
@@ -842,9 +875,9 @@ void mode9(){
   else{
     for(int i=0; i<150; i++)
       if(directions[i] == 0)
-        led[i] = CHSV(hueStart, saturation, value);
+        led[i] = CHSV(hue_start, saturation, value);
       else
-        led[i] = CHSV(hueStop, saturation, value);
+        led[i] = CHSV(hue_stop, saturation, value);
   }
   
   if(dir == 1)
@@ -858,17 +891,15 @@ void mode9(){
     dir = 1;
 }
 
-
-
 /*
  * Mode 10
  * Strobe
  */
 void mode10(){
-  if(modeSetup){
+  if(mode_setup){
     dir = 0;
     value = 0;
-    modeSetup = false;
+    mode_setup = false;
   }
 
   if(!value && action){
@@ -917,8 +948,8 @@ void mode10(){
  * Mode 11
  * Maximum Rainbow Power
  */
- void mode11(){
-  if(modeSetup){
+void mode11(){
+  if(mode_setup){
     for(int i=0; i<NUM_LEDS; i++){
       colors[i] = random(0, 256);
       bright[i] = random(100, 256);
@@ -929,7 +960,7 @@ void mode10(){
       led[i] = CHSV(colors[i], saturation, bright[i]);
     }
     counter = 0;
-    modeSetup = false;
+    mode_setup = false;
   }
   else{
     counter++;
@@ -969,30 +1000,8 @@ void mode10(){
 }
 
 
-void setup() {
-  FastLED.addLeds<NEOPIXEL, DATA_PIN>(led, NUM_LEDS);
-  FastLED.setBrightness(BRIGHTNESS);
-  MIDI.begin(MIDI_CHANNEL_OMNI);
-  MIDI.setHandleNoteOn(HandleNoteOn);
-
-  // qwerty to midi
-  if(keyControl)
-    Serial.begin(9600);
-
-  // sonar
-  //pinMode(TRIG, OUTPUT);
-  //pinMode(ECHO, INPUT);
-
-  for(int i=0; i<NUM_LEDS; i++)
-    led[i] = CHSV(hue,saturation,brightness);
-
-  FastLED.show();
-}
-
-
 /*
- * Called each iteration to perform
- * the correct routine based on mode
+ * Choose correct routine based on mode
  */
 void modeStateMachine(){
   switch(mode){
@@ -1122,54 +1131,54 @@ void getSerial(){
 
       // brightness
       case 32:
-        targetBrightness = 0;
-        fadeBrightness = true;
+        target_brightness = 0;
+        fade_brightness = true;
         break;
       case 33:
-        targetBrightness = 51;
-        fadeBrightness = true;
+        target_brightness = 51;
+        fade_brightness = true;
         break;
       case 34:
-        targetBrightness = 102;
-        fadeBrightness = true;
+        target_brightness = 102;
+        fade_brightness = true;
         break;
       case 35:
-        targetBrightness = 153;
-        fadeBrightness = true;
+        target_brightness = 153;
+        fade_brightness = true;
         break;
       case 36:
-        targetBrightness = 204;
-        fadeBrightness = true;
+        target_brightness = 204;
+        fade_brightness = true;
         break;
       case 37:
-        targetBrightness = 255;
-        fadeBrightness = true;
+        target_brightness = 255;
+        fade_brightness = true;
         break;
 
       // saturation
       case 38:
-        targetSaturation = 0;
-        fadeSaturation = true;
+        target_saturation = 0;
+        fade_saturation = true;
         break;
       case 40:
-        targetSaturation = 51;
-        fadeSaturation = true;
+        target_saturation = 51;
+        fade_saturation = true;
         break;
       case 41:
-        targetSaturation = 102;
-        fadeSaturation = true;
+        target_saturation = 102;
+        fade_saturation = true;
         break;
       case 42:
-        targetSaturation = 153;
-        fadeSaturation = true;
+        target_saturation = 153;
+        fade_saturation = true;
         break;
       case 43:
-        targetSaturation = 204;
-        fadeSaturation = true;
+        target_saturation = 204;
+        fade_saturation = true;
         break;
       case 44:
-        targetSaturation = 255;
-        fadeSaturation = true;
+        target_saturation = 255;
+        fade_saturation = true;
         break;
     }
     key = -1;
@@ -1178,37 +1187,34 @@ void getSerial(){
 }
 
 void HandleNoteOn(byte channel, byte pitch, byte velocity) {
+  // update state based on received midi byte
   switch(pitch){
     case 71: // action
       action = true;
       break;
     case 72: // slow burst
       brightness = BRIGHTNESS;
-      if(mode != 3)
-        setGradientHue();
+      setGradientHue();
       descending = 2;
-      fadeBrightness = false;
+      fade_brightness = false;
       break;
     case 73: // medium burst
       brightness = BRIGHTNESS;
-      if(mode != 3)
-        setGradientHue();
+      setGradientHue();
       descending = 3;
-      fadeBrightness = false;
+      fade_brightness = false;
       break;
     case 74: // fast burst
       brightness = BRIGHTNESS;
-      if(mode != 3)
-        setGradientHue();
+      setGradientHue();
       descending = 6;
-      fadeBrightness = false;
+      fade_brightness = false;
       break;
     case 75: // slow swell
       brightness = 0;
-      if(mode != 3)
-        setGradientHue();
+      setGradientHue();
       descending = -1;
-      fadeBrightness = false;
+      fade_brightness = false;
       break;
     case 76: // stop burst/swell
       descending = 0;
@@ -1216,97 +1222,96 @@ void HandleNoteOn(byte channel, byte pitch, byte velocity) {
       break;
     case 77: // color set 1 (ROY)
       hue = 0;
-      hueStart = 0;
-      hueStop = 50;
-      hueStep = 6;
-      modeSetup = true;
+      hue_start = 0;
+      hue_stop = 50;
+      hue_step = 6;
+      mode_setup = true;
       break;
     case 78: // color set 2
       hue = 64;
-      hueStart = 64;
-      hueStop = 128;
-      hueStep = 8;
-      modeSetup = true;
+      hue_start = 64;
+      hue_stop = 128;
+      hue_step = 8;
+      mode_setup = true;
       break;
     case 79: // color set 3
       hue = 128;
-      hueStart = 128;
-      hueStop = 192;
-      hueStep = 8;
-      modeSetup = true;
+      hue_start = 128;
+      hue_stop = 192;
+      hue_step = 8;
+      mode_setup = true;
       break;
     case 80: // color set 4
       hue = 192;
-      hueStart = 192;
-      hueStop = 255;
-      hueStep = 8;
-      modeSetup = true;
+      hue_start = 192;
+      hue_stop = 255;
+      hue_step = 8;
+      mode_setup = true;
       break;
     case 81: // color set 5 (ROYGBIV)
       hue = 0;
-      hueStart = 0;
-      hueStop = 255;
-      hueStep = 16;
-      modeSetup = true;
+      hue_start = 0;
+      hue_stop = 255;
+      hue_step = 16;
+      mode_setup = true;
       break;
     case 82: // sonar toggle
-      if(sonar){
-        sonar = false;
+      if(sonar_sensor){
+        sonar_sensor = false;
         brightness = BRIGHTNESS;
       }
       else
-        sonar = true;
+        sonar_sensor = true;
       break;
     // mode changes (C7+)
     case 96: // mode 0
       mode = 0;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 97: // mode 1
       mode = 1;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 98: // mode 2
       mode = 2;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 99: // mode 3
       mode = 3;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 100: // mode 4
       mode = 4;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 101: // mode 5
       mode = 5;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 102: // mode 6
       mode = 6;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 103: // mode 7
       mode = 7;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 104: // mode 8
       mode = 8;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 105: // mode 9
       mode = 9;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 106: // mode 10
       mode = 10;
-      modeSetup = true;
+      mode_setup = true;
       break;
     case 107: // mode 11
       mode = 11;
-      modeSetup = true;
+      mode_setup = true;
       break;
   }
 }
-
 
