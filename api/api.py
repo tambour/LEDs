@@ -29,7 +29,7 @@ def send_letter(letter):
     retries = 10
     while retries > 0:
         try:
-            asd.write('{}{}{}'.format(letter, letter, letter))
+            asd.write('{}'.format(letter))
             print('++ wrote {} to board'.format(letter))
             return
         except Exception as ex:
