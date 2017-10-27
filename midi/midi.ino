@@ -3,10 +3,10 @@
 #include <MIDI.h>
 #include <math.h>
 
-#define BRIGHTNESS 255
+#define BRIGHTNESS 180
 #define IDLE_BRIGHTNESS 100
 #define SATURATION 255
-#define NUM_LEDS 150
+#define NUM_LEDS 78 //108
 #define DATA_PIN 8 //13
 #define TRIG 9
 #define ECHO 10
@@ -15,6 +15,9 @@
 #define SOUND_SENSOR 224
 #define DRUM_THRESHOLD 1023
 #define PRINT_THRESHOLD 512
+#define PIANO_FADE 3
+#define PIANO_THRESHOLD 100
+#define PIANO_BRIGHTNESS 200
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
 
@@ -24,6 +27,11 @@ int brightness = IDLE_BRIGHTNESS;
 int saturation = SATURATION;
 int hue = 120;
 int wait_time = 5;
+
+// piano input
+bool piano_control = true;
+int piano[NUM_LEDS];
+int piano_counter = 0;
 
 // qwerty input
 bool key_control = true;
@@ -41,7 +49,7 @@ int drum_value = HIGH;
 bool midi_input = false;
 
 // mode vars
-int mode = 3;
+int mode = 0;
 bool mode_setup = true;
 bool action = false;
 
@@ -135,6 +143,10 @@ void loop(){
 
   // choose routine based on mode
   modeStateMachine();
+
+  // poll for piano
+  if(piano_control)
+    applyPiano();
 
   // apply changes and delay
   FastLED.show();
@@ -395,7 +407,7 @@ void mode1(){
       led[i] = CHSV(target,saturation,brightness);
   }
 
-  delay(10);
+  delay(20);
 }
 
 /* 
@@ -519,6 +531,7 @@ void mode4(){
 
     led[i] = CHSV(bright[i],saturation,brightness);
   }
+  delay(20);
 }
 
 /*
@@ -594,7 +607,7 @@ void mode5(){
       }
     }
   }
-  delay(15);
+  delay(20);
 }
 
 /*
@@ -666,7 +679,7 @@ void mode6(){
       counter = 0;
     }
   }
-  delay(4);
+  delay(10);
 }
 
 /*
@@ -951,8 +964,8 @@ void mode10(){
 void mode11(){
   if(mode_setup){
     for(int i=0; i<NUM_LEDS; i++){
-      colors[i] = random(0, 256);
-      bright[i] = random(100, 256);
+      colors[i] = random(0, BRIGHTNESS);
+      bright[i] = random(100, BRIGHTNESS);
       if(random(0,2)==0)
         directions[i] = 1;
       else
@@ -967,13 +980,13 @@ void mode11(){
     for(int i=0; i<NUM_LEDS; i++){
       colors[i] += random(4,10);
       bright[i] += random(1,8)*directions[i];
-      if(bright[i] > 255){
+      if(bright[i] > BRIGHTNESS){
         directions[i] = -1;
-        bright[i] = 255;
+        bright[i] = BRIGHTNESS;
       }
-      else if(bright[i] < 100){
+      else if(bright[i] < IDLE_BRIGHTNESS){
         directions[i] = 1;
-        bright[i] = 160;
+        bright[i] = IDLE_BRIGHTNESS;
       }
       led[i] = CHSV(colors[i], saturation, bright[i]);
     }
@@ -986,8 +999,8 @@ void mode11(){
           bright[i] = bright[i-1];
         }
         else{
-          colors[0] = random(0, 256);
-          bright[0] = random(100, 256);
+          colors[0] = random(0, BRIGHTNESS);
+          bright[0] = random(100, BRIGHTNESS);
           if(random(0,2)==0)
             directions[0] = 1;
           else
@@ -999,6 +1012,41 @@ void mode11(){
   }
 }
 
+/*
+ * Apply piano to LEDs
+ */
+void applyPiano(){
+    for(int i=0; i<NUM_LEDS; i++)
+        if(piano[i] >= 1){
+            led[i] = CHSV(0,0,piano[i]);
+            piano[i] -= PIANO_FADE;
+            if (piano[i] <= PIANO_THRESHOLD)
+                piano[i] = 0;
+        }
+}
+
+/*
+ * Handle piano note down/up
+ */
+void handlePiano(int value, bool down){
+    
+    if(down){            
+        // incoming values are [230-255]
+        // normalize to get led index
+        value -= 230;
+            
+        // enable led
+        piano[value] = PIANO_BRIGHTNESS;
+    }
+    else{
+        // incoming values are [60-85]
+        // normalize to get led index
+        value -= 60;
+
+        // bump led down on midi off
+        piano[value] -= 10;
+    }
+}   
 
 /*
  * Choose correct routine based on mode
@@ -1053,7 +1101,14 @@ void getSerial(){
     key = Serial.read();
     Serial.println(key);
     byte pitch = 0;
+    
+    // handle piano messages
+    if((key >= 60 && key <= 85) || (key >= 230 && key <= 255)){
+        handlePiano(key, (key >= 230 && key <= 255));
+        return;
+    }
 
+    // handle all other messages
     switch(key){
 
       //actions
